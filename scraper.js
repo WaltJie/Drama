@@ -3,7 +3,7 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 const fs = require('fs');
 
-const dramas = ["최애의_사원", "눈물의_여왕"];
+const dramas = ["최애의%20사원", "재벌X형사2", "이런%20엿같은%20사랑", "욕망의%20덫", "신병4%20:%20사보타주", "포핸즈"];
 const results = [];
 
 (async () => {

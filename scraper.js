@@ -7,13 +7,15 @@ const dramas = ["최애의_사원", "눈물의_여왕"];
 const results = [];
 
 (async () => {
-  // 增加了 --no-sandbox 参数以适应 GitHub Actions 运行环境
+  // 强制禁用沙盒并适配 GitHub Actions 的 Linux 环境
   const browser = await puppeteer.launch({
-    headless: 'new',
+    headless: true, // Puppeteer v22 推荐的标准写法
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage'
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--no-zygote'
     ]
   });
   

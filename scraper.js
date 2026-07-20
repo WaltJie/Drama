@@ -3,16 +3,22 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 const fs = require('fs');
 
-// 这里配置你需要抓取的剧集名称
 const dramas = ["최애의_사원", "눈물의_여왕"];
 const results = [];
 
 (async () => {
-  // 启动无头浏览器
-  const browser = await puppeteer.launch({ headless: true });
+  // 增加了 --no-sandbox 参数以适应 GitHub Actions 运行环境
+  const browser = await puppeteer.launch({
+    headless: 'new',
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage'
+    ]
+  });
+  
   const page = await browser.newPage();
   
-  // 设置请求头模拟真实用户
   await page.setViewport({ width: 1280, height: 720 });
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
@@ -21,9 +27,7 @@ const results = [];
     try {
       await page.goto(`https://namu.wiki/w/${encodeURIComponent(title)}`, { waitUntil: 'networkidle2', timeout: 30000 });
       
-      // 在浏览器环境中提取页面数据
       const data = await page.evaluate((dramaTitle) => {
-         // 辅助查找表格字段的函数
          const extractField = (keyword) => {
            const elements = Array.from(document.querySelectorAll('th, td, strong'));
            const target = elements.find(el => el.textContent.includes(keyword));
@@ -36,7 +40,6 @@ const results = [];
            return '暂无数据';
          };
          
-         // 提取海报图片 (Namu Wiki 图片一般存在于这些结构中)
          let image = '';
          const imgElement = document.querySelector('img[src*="namu.la"], img[class*="nu9OvS9P"]');
          if (imgElement) {
@@ -66,7 +69,6 @@ const results = [];
   
   await browser.close();
   
-  // 将抓取结果存入根目录的 data.json
   fs.writeFileSync('data.json', JSON.stringify(results, null, 2), 'utf-8');
   console.log('全部完成，数据已保存到 data.json');
 })();

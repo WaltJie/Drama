@@ -1,0 +1,39 @@
+name: Daily Drama Scraper
+
+on:
+  schedule:
+    # 每天 UTC 时间 19:00 运行（对应北京/台湾时间次日凌晨 03:00）
+    - cron: '0 19 * * *'
+  workflow_dispatch: # 允许你在网页上手动点击运行
+
+jobs:
+  scrape-and-update:
+    runs-on: ubuntu-latest
+    
+    # 赋予写入仓库的权限
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Scraper
+        run: node scraper.js
+
+      - name: Commit and Push changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          # 如果文件有变化则提交，没变化则跳过
+          git commit -m "Auto-update drama data" || exit 0
+          git push

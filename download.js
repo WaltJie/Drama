@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 
-// 目标剧集列表
 const dramas = [
   "최애의_사원",
   "재벌X형사2",
@@ -12,39 +11,61 @@ const dramas = [
 ];
 
 const htmlDir = path.join(__dirname, 'html');
+
+// 确保 html 文件夹存在
 if (!fs.existsSync(htmlDir)) {
-  fs.mkdirSync(htmlDir);
+  fs.mkdirSync(htmlDir, { recursive: true });
 }
 
+// 延迟函数，防止触发代理限流
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 (async () => {
-  for (const title of dramas) {
+  console.log("====================================");
+  console.log(`🚀 开始抓取 ${dramas.length} 个 HTML 页面...`);
+  console.log("====================================\n");
+
+  for (let i = 0; i < dramas.length; i++) {
+    const title = dramas[i];
     const rawTitle = decodeURIComponent(title);
-    console.log(`正在获取 HTML: ${rawTitle}...`);
+    const fileName = `${rawTitle}.html`;
+    const filePath = path.join(htmlDir, fileName);
+
+    console.log(`[${i + 1}/${dramas.length}] 正在获取: ${rawTitle}`);
+
+    const targetUrl = `https://namu.wiki/w/${encodeURIComponent(rawTitle)}`;
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
 
     try {
-      // 使用免费代理 Bridge 绕过 Cloudflare 对 GitHub 机房 IP 的直接拦截
-      const targetUrl = `https://namu.wiki/w/${encodeURIComponent(rawTitle)}`;
-      const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
-
       const res = await fetch(proxyUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
         }
       });
 
-      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-      const htmlText = await res.text();
-
-      // 验证是否获取到了有效页面（而非 403 验证页）
-      if (htmlText.includes('Just a moment...') || htmlText.length < 5000) {
-        console.warn(`⚠️ ${rawTitle} 返回了验证页面或内容过短`);
-      } else {
-        const filePath = path.join(htmlDir, `${rawTitle}.html`);
-        fs.writeFileSync(filePath, htmlText, 'utf-8');
-        console.log(`✅ 成功保存 HTML 至: html/${rawTitle}.html`);
+      if (!res.ok) {
+        throw new Error(`HTTP 状态码: ${res.status}`);
       }
+
+      const htmlText = await res.text();
+      fs.writeFileSync(filePath, htmlText, 'utf-8');
+      console.log(`  └─ ✅ 成功保存 html/${fileName} (${htmlText.length} 字节)`);
+
     } catch (e) {
-      console.error(`❌ 获取 ${rawTitle} 失败:`, e.message);
+      console.error(`  └─ ❌ 获取失败: ${e.message}`);
+      // 写入保底调试文件，确保 git 能够捕捉到目录更改
+      const errorHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${rawTitle}</title></head><body><h1>Fetch Failed</h1><p>${e.message}</p></body></html>`;
+      fs.writeFileSync(filePath, errorHtml, 'utf-8');
+    }
+
+    // 每次请求完成后强制间隔 3 秒，避免代理服务拦截
+    if (i < dramas.length - 1) {
+      console.log(`  ⏳ 缓冲中，等待 3 秒...`);
+      await sleep(3000);
     }
   }
+
+  console.log("\n====================================");
+  console.log("🎉 所有页面处理完成！");
+  console.log("====================================");
 })();

@@ -3,13 +3,21 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 puppeteer.use(StealthPlugin());
 const fs = require('fs');
 
-const dramas = ["최애의%20사원", "재벌X형사2", "이런%20엿같은%20사랑", "욕망의%20덫", "신병4%20:%20사보타주", "포핸즈"];
+// 支持直接带有 %20 或韩文原字
+const dramas = [
+  "최애의%20사원",
+  "재벌X형사2",
+  "이런%20엿같은%20사랑",
+  "욕망의%20덫",
+  "신병4%20:%20사보타주",
+  "포핸즈"
+];
+
 const results = [];
 
 (async () => {
-  // 强制禁用沙盒并适配 GitHub Actions 的 Linux 环境
   const browser = await puppeteer.launch({
-    headless: true, // Puppeteer v22 推荐的标准写法
+    headless: true,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -25,11 +33,16 @@ const results = [];
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
   for (const title of dramas) {
-    console.log(`正在抓取: ${title}...`);
+    // 先解码再编码，彻底解决二次编码 (%2520) 导致的 404 问题
+    const rawTitle = decodeURIComponent(title);
+    const targetUrl = `https://namu.wiki/w/${encodeURIComponent(rawTitle)}`;
+    
+    console.log(`正在抓取: ${rawTitle} -> ${targetUrl}`);
+    
     try {
-      await page.goto(`https://namu.wiki/w/${encodeURIComponent(title)}`, { waitUntil: 'networkidle2', timeout: 30000 });
+      await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 30000 });
       
-      const data = await page.evaluate((dramaTitle) => {
+      const data = await page.evaluate((displayTitle) => {
          const extractField = (keyword) => {
            const elements = Array.from(document.querySelectorAll('th, td, strong'));
            const target = elements.find(el => el.textContent.includes(keyword));
@@ -50,21 +63,26 @@ const results = [];
          }
          
          return {
-            title: dramaTitle,
+            title: displayTitle,
             image: image,
-            title_by_lang: extractField('언어별 제목') || extractField('한국어'),
+            title_by_lang: extractField('언어별 제목') || extractField('한국어') || displayTitle,
             broadcast_period: extractField('방송 기간'),
             broadcast_count: extractField('방송 횟수') || extractField('몇 부작'),
             streaming: extractField('스트리밍') || extractField('채널')
          };
-      }, title);
+      }, rawTitle);
       
       results.push(data);
-      console.log(`成功: ${title}`);
+      console.log(`成功抓取: ${rawTitle}`);
     } catch (e) {
-      console.error(`失败 ${title}:`, e.message);
+      console.error(`抓取失败 ${rawTitle}:`, e.message);
       results.push({
-        title: title, image: '', title_by_lang: '抓取失败', broadcast_period: '-', broadcast_count: '-', streaming: '-'
+        title: rawTitle,
+        image: '',
+        title_by_lang: rawTitle,
+        broadcast_period: '-',
+        broadcast_count: '-',
+        streaming: '-'
       });
     }
   }
@@ -72,5 +90,5 @@ const results = [];
   await browser.close();
   
   fs.writeFileSync('data.json', JSON.stringify(results, null, 2), 'utf-8');
-  console.log('全部完成，数据已保存到 data.json');
+  console.log('全部完成，数据已成功写入 data.json');
 })();
